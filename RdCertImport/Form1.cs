@@ -28,7 +28,20 @@ namespace RdCertImport
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            dataGridView1.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridView1.SelectionChanged += DataGridView1_SelectionChanged;
+        }
 
+        private void DataGridView1_SelectionChanged(object sender, EventArgs e)
+        {
+            if (dataGridView1.SelectedRows.Count>0)
+            {
+
+                var row = dataGridView1.SelectedRows[0];
+                var hash = (string)row.Cells["Hash"].Value;
+                certHash.Text = hash;
+            }
         }
 
         private void tabPage1_Click(object sender, EventArgs e)
@@ -49,7 +62,7 @@ namespace RdCertImport
             if (res == DialogResult.OK)
             {
                 CertFile = ofd.FileName;
-                materialSingleLineTextField1.Text = ofd.SafeFileName;
+                certFile.Text = ofd.SafeFileName;
                 clearerror();
             }
         }
@@ -82,7 +95,7 @@ namespace RdCertImport
             clearerror();
             if (!File.Exists(CertFile))
             {
-                errorProvider1.SetError(materialSingleLineTextField1, "文件不存在");
+                errorProvider1.SetError(certFile, "文件不存在");
                 return false;
             }
             return true;
@@ -210,6 +223,34 @@ namespace RdCertImport
         private void materialSingleLineTextField1_TextChanged(object sender, EventArgs e)
         {
             errorProvider1.Clear();
+        }
+
+        private void materialRaisedButton3_Click(object sender, EventArgs e)
+        {
+
+            dataGridView1.DataSource = GetData();
+            //dataGridView1.DataBindings
+
+        }
+
+        public List<CertInfo> GetData()
+        {
+            X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+            store.Open(OpenFlags.ReadOnly);
+            var list = store.Certificates.Cast<X509Certificate2>()
+                .Where(x => x.HasPrivateKey)
+                .Select(x => new CertInfo
+                {
+                    FriendlyName =
+                    x.FriendlyName,
+                    SubjectName = x.SubjectName.Name,
+                    Subject = x.Subject,
+                    IssuerName = x.IssuerName.Name,
+                    Useable = x.Verify(),
+                    Hash = x.GetCertHashString()
+                });
+            store.Close();
+            return list.ToList();
         }
     }
 }
