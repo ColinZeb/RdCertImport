@@ -8,7 +8,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -24,7 +23,10 @@ namespace RdCertImport
             materialSkinManager.AddFormToManage(this);
             materialSkinManager.Theme = MaterialSkinManager.Themes.LIGHT;
             materialSkinManager.ColorScheme = new ColorScheme(Primary.BlueGrey800, Primary.BlueGrey900, Primary.BlueGrey500, Accent.LightBlue200, TextShade.WHITE);
+            CertManager = new CertManager();
         }
+
+        CertManager CertManager { get; set; }
 
         private void Form1_Load(object sender, EventArgs e)
         {
@@ -33,9 +35,10 @@ namespace RdCertImport
             dataGridView1.SelectionChanged += DataGridView1_SelectionChanged;
         }
 
+
         private void DataGridView1_SelectionChanged(object sender, EventArgs e)
         {
-            if (dataGridView1.SelectedRows.Count>0)
+            if (dataGridView1.SelectedRows.Count > 0)
             {
 
                 var row = dataGridView1.SelectedRows[0];
@@ -71,13 +74,23 @@ namespace RdCertImport
             errorProvider1.Clear();
         }
         public string CertFile { get; set; }
+        /// <summary>
+        /// 密码
+        /// </summary>
+        string Password
+        {
+            get
+            {
+                return materialSingleLineTextField2.Text;
+            }
+        }
         private void materialFlatButton1_Click(object sender, EventArgs e)
         {
             if (CheckFileExist())
             {
                 try
                 {
-                    X509Certificate2 cert = new X509Certificate2(CertFile, materialSingleLineTextField2.Text);
+                    var cert = CertManager.OpenCert(CertFile, Password);
                     var hash = cert.GetCertHashString();
                     MessageBox.Show($"密码正确,哈希为:{hash}");
                 }
@@ -105,16 +118,14 @@ namespace RdCertImport
         {
             if (CheckFileExist())
             {
-                X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
                 string hash = null;
                 try
                 {
 
-                    store.Open(OpenFlags.ReadWrite);
-                    X509Certificate2 cert = new X509Certificate2(CertFile, materialSingleLineTextField2.Text, X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet | X509KeyStorageFlags.Exportable);
+                    var cert = CertManager.OpenCert(CertFile, Password);
 
                     hash = cert.GetCertHashString();
-                    if (store.Certificates.Contains(cert))
+                    if (CertManager.Exist(cert))
                     {
                         //errorProvider1.SetError(materialRaisedButton1, "已经导入");
 
@@ -125,13 +136,13 @@ namespace RdCertImport
                         }
                         if (choice == DialogResult.Yes)
                         {
-                            store.Certificates.Remove(cert);
-                            store.Add(cert);
+                            CertManager.Remove(cert);
+                            CertManager.ImportWithKey(cert);
                         }
                     }
                     else
                     {
-                        store.Add(cert);
+                        CertManager.ImportWithKey(cert);
                     }
 
 
@@ -143,10 +154,6 @@ namespace RdCertImport
                 catch (Exception ex)
                 {
                     errorProvider1.SetError(materialRaisedButton1, ex.Message);
-                }
-                finally
-                {
-                    store.Close();
                 }
 
             }
@@ -200,7 +207,7 @@ namespace RdCertImport
             {
                 try
                 {
-                    X509Certificate2 cert = new X509Certificate2(CertFile, materialSingleLineTextField2.Text);
+                    var cert = CertManager.OpenCert(CertFile, Password);
                     var hash = cert.GetCertHashString();
                     Clipboard.SetText(hash);
                     MessageBox.Show("已复制到剪切板");
@@ -235,22 +242,7 @@ namespace RdCertImport
 
         public List<CertInfo> GetData()
         {
-            X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
-            store.Open(OpenFlags.ReadOnly);
-            var list = store.Certificates.Cast<X509Certificate2>()
-                .Where(x => x.HasPrivateKey)
-                .Select(x => new CertInfo
-                {
-                    FriendlyName =
-                    x.FriendlyName,
-                    SubjectName = x.SubjectName.Name,
-                    Subject = x.Subject,
-                    IssuerName = x.IssuerName.Name,
-                    Useable = x.Verify(),
-                    Hash = x.GetCertHashString()
-                });
-            store.Close();
-            return list.ToList();
+            return CertManager.GetMyCert();
         }
     }
 }
