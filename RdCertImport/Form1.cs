@@ -116,6 +116,11 @@ namespace RdCertImport
 
         private void materialRaisedButton1_Click(object sender, EventArgs e)
         {
+            ImportCert();
+        }
+
+        private void ImportCert()
+        {
             if (CheckFileExist())
             {
                 string hash = null;
